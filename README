@@ -1,35 +1,37 @@
-DP-SLAM
-Emily Tarrant and Kim Tran
+void HighSlam(TPath *path, TSenseLog *obs)
+{
+  int i, j;
+  char name[16];
 
+  HighInitializeFlags();
 
-Requirements
-	- rosbag
-	- rosrecord
-	- laser scan data
-	- odometry data
-	- a computer with decent processing power and memory
-	- ImageMagick may be needed to convert files
-	
-Running the program:
+  if (h_curGeneration == 0) {
+    HighAddToWorldModel(path, obs, 1);
 
-	To run the program ,first launch the segway base and the hokuyo laser. This can be done using segbot_bringup
-		$ roslaunch segbot_bringup segbot_hokuyo.launch
-	After that, record data in the scan and odom topics while the robot is driving into a bag file
-		$ rosbag record -O dpslam.bag /scan /odom
-	The logger can then be read data from the topics then writes them out to a file in the required format
-		$ rosrun dpslam_logger dpslam.bag
-	The produced log file can then be copied and run in the dpslam folder
-		$ cd ../dpslam
-		$ make
-		$ ./slam -p scan_data.log
+    sprintf(name, "hmap00");
+    HighPrintMap(name, h_particle[0].ancestryNode);
+    sprintf(name, "rm hmap00.ppm");
+    system(name);
+  }
+  else {
+    // Localize off of the path
+    HighLocalize(path, obs);
 
-Common relevant variables:
-	- dpslam_logger/logger.cpp: Change argument 'scan_data.log' to desired log name
-	- dpslam/map.h:	PARTICLE_NUMBER: Change the number of particles used for the low level process
-			H_PARTICLE_NUMBER: Change the number of particles used for the high level process
-			MAP_WIDTH and MAP_HEIGHT: Change the dimension of the output low maps
-			H_MAP_WIDTH and H_MAP_HEIGHT: Change the dimension of the output high maps
-	- dpslam/basic.h: Change the number of grid squares per meter in the map resolution. Typically 20-35 (3-5cm 				  per grid square)
-	- dpslam/low.h: Change the number of low level iterations performed before each high level iteration
+    HighUpdateAncestry(path, obs);
 
+    if ((H_VIDEO) && (h_curGeneration % H_VIDEO == 0)) {
+      sprintf(name, "hmap%.2d", (int) (h_curGeneration/H_VIDEO));
+      j = 0;
+      for (i = 0; i < h_cur_particles_used; i++)
+	if (h_particle[i].probability > h_particle[j].probability)
+	  j = i;
 
+      HighPrintMap(name, h_particle[j].ancestryNode);
+      sprintf(name, "rm hmap%.2d.ppm", (int) (h_curGeneration/H_VIDEO));
+      system(name);
+    }
+  }
+
+  h_curGeneration++;
+  HighInitializeFlags();
+}
